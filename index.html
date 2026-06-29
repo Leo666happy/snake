@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>发条贪吃蛇</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Noto+Sans+SC:wght@300;400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+:root {
+  --bg:#12100e;--bg2:#1e1a15;--panel:#231f19;--border:#3d352c;
+  --copper:#b87333;--brass:#c9a84c;--gold:#d4a843;--dark-copper:#8b5e3c;
+  --accent:#c0392b;--text:#e8d5b5;--muted:#8b7355;--rivet:#6b5a42;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Noto Sans SC',sans-serif;min-height:100vh;overflow-x:hidden}
+.font-cinzel{font-family:'Cinzel',serif}
+
+/* 背景装饰齿轮 */
+.bg-gear{position:fixed;opacity:.035;z-index:0;pointer-events:none;color:var(--copper)}
+.bg-gear-1{top:-80px;left:-80px;font-size:360px;animation:spin-cw 60s linear infinite}
+.bg-gear-2{bottom:-120px;right:-60px;font-size:440px;animation:spin-ccw 80s linear infinite}
+.bg-gear-3{top:40%;left:55%;font-size:260px;animation:spin-cw 50s linear infinite}
+@keyframes spin-cw{to{transform:rotate(360deg)}}
+@keyframes spin-ccw{to{transform:rotate(-360deg)}}
+
+/* 金属面板 */
+.metal-panel{background:var(--panel);border:2px solid var(--border);
+  box-shadow:inset 0 1px 0 rgba(201,168,76,.1),inset 0 -1px 0 rgba(0,0,0,.3),0 4px 20px rgba(0,0,0,.5),0 0 40px rgba(184,115,51,.05);position:relative}
+.metal-panel::before{content:'';position:absolute;inset:3px;border:1px solid rgba(201,168,76,.06);pointer-events:none;border-radius:inherit}
+
+/* 铆钉 */
+.rivet{width:8px;height:8px;background:radial-gradient(circle at 35% 35%,var(--brass),var(--rivet));
+  border-radius:50%;box-shadow:inset 0 1px 1px rgba(255,255,255,.2),0 1px 2px rgba(0,0,0,.5);position:absolute;z-index:2}
+
+/* 按钮 */
+.btn-brass{background:linear-gradient(180deg,#c9a84c 0%,#b87333 50%,#8b5e3c 100%);
+  color:#1a1410;font-weight:700;border:1px solid #6b4c2a;padding:10px 24px;border-radius:6px;
+  box-shadow:0 2px 4px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.3);
+  transition:all .15s ease;letter-spacing:2px;cursor:pointer;font-size:14px;width:100%;text-align:center}
+.btn-brass:hover:not(:disabled){background:linear-gradient(180deg,#d4b85a 0%,#c9a84c 50%,#b87333 100%);
+  box-shadow:0 2px 8px rgba(184,115,51,.4),inset 0 1px 0 rgba(255,255,255,.3);transform:translateY(-1px)}
+.btn-brass:active:not(:disabled){transform:translateY(1px);box-shadow:0 1px 2px rgba(0,0,0,.4),inset 0 2px 4px rgba(0,0,0,.2)}
+.btn-brass:disabled{opacity:.4;cursor:not-allowed;transform:none}
+
+/* 仪表 */
+.gauge{background:linear-gradient(180deg,#1a1410,#0d0b09);border:2px solid var(--border);
+  border-radius:8px;position:relative;overflow:hidden;padding:16px}
+.gauge::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(201,168,76,.04) 0%,transparent 50%);pointer-events:none}
+
+/* 画布框 */
+.canvas-frame{border:3px solid var(--border);box-shadow:inset 0 0 30px rgba(0,0,0,.8),0 0 20px rgba(184,115,51,.1);
+  position:relative;background:#0d0b09;border-radius:4px;line-height:0}
+.canvas-frame canvas{display:block;border-radius:2px}
+
+/* 分数动画 */
+@keyframes score-pop{0%{transform:scale(1)}50%{transform:scale(1.25);color:var(--gold)}100%{transform:scale(1)}}
+.score-pop{animation:score-pop .3s ease}
+
+/* 标题齿轮 */
+.title-gear{display:inline-block;animation:spin-cw 8s linear infinite;color:var(--copper);vertical-align:middle}
+.title-gear-r{display:inline-block;animation:spin-ccw 6s linear infinite;color:var(--copper);vertical-align:middle}
+
+/* 按键帽 */
+.key-cap{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:30px;padding:0 6px;
+  background:linear-gradient(180deg,#3d352c,#2a2118);border:1px solid var(--border);border-radius:4px;
+  font-size:11px;color:var(--brass);box-shadow:0 2px 0 var(--border)}
+
+/* 速度条 */
+.speed-bar{height:8px;background:#1a1410;border-radius:4px;overflow:hidden;border:1px solid var(--border)}
+.speed-fill{height:100%;background:linear-gradient(90deg,var(--copper),var(--accent));border-radius:4px;transition:width .3s ease}
+
+/* 覆盖层 */
+.overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  background:rgba(13,11,9,.88);border-radius:2px;z-index:10;backdrop-filter:blur(2px)}
+.overlay.hidden{display:none}
+
+/* Toast */
+.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-100px);
+  background:var(--panel);border:1px solid var(--copper);color:var(--brass);padding:12px 28px;
+  border-radius:8px;z-index:1000;transition:transform .3s ease;box-shadow:0 4px 20px rgba(0,0,0,.5);font-weight:700}
+.toast.show{transform:translateX(-50%) translateY(0)}
+
+/* 布局 */
+.game-layout{display:flex;gap:24px;align-items:flex-start;justify-content:center}
+.side-panel{width:220px;flex-shrink:0}
+
+@media(max-width:820px){
+  .game-layout{flex-direction:column;align-items:center}
+  .side-panel{width:100%;max-width:506px}
+  .canvas-frame,.canvas-frame canvas{max-width:calc(100vw - 32px);height:auto!important}
+}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}
+}
+</style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen p-4 relative">
+
+<!-- 背景齿轮 -->
+<i class="fa-solid fa-gear bg-gear bg-gear-1" aria-hidden="true"></i>
+<i class="fa-solid fa-gear bg-gear bg-gear-2" aria-hidden="true"></i>
+<i class="fa-solid fa-gear bg-gear bg-gear-3" aria-hidden="true"></i>
+
+<main class="relative z-10 w-full max-w-[760px]">
+  <!-- 标题 -->
+  <header class="text-center mb-6">
+    <h1 class="font-cinzel text-3xl md:text-4xl font-black tracking-wider" style="color:var(--brass)">
+      <i class="fa-solid fa-gear title-gear text-xl mr-2" aria-hidden="true"></i>
+      CLOCKWORK SNAKE
+      <i class="fa-solid fa-gear title-gear-r text-xl ml-2" aria-hidden="true"></i>
+    </h1>
+    <p class="text-sm mt-1 tracking-widest" style="color:var(--muted)">发条贪吃蛇</p>
+  </header>
+
+  <!-- 游戏区域 -->
+  <div class="game-layout">
+    <!-- 画布 -->
+    <div class="canvas-frame" style="width:506px;height:506px">
+      <canvas id="game" width="500" height="500"></canvas>
+      <!-- 四角铆钉 -->
+      <span class="rivet" style="top:6px;left:6px"></span>
+      <span class="rivet" style="top:6px;right:6px"></span>
+      <span class="rivet" style="bottom:6px;left:6px"></span>
+      <span class="rivet" style="bottom:6px;right:6px"></span>
+      <!-- 开始覆盖层 -->
+      <div id="startOverlay" class="overlay">
+        <i class="fa-solid fa-gear text-5xl mb-4" style="color:var(--copper);animation:spin-cw 4s linear infinite" aria-hidden="true"></i>
+        <p class="font-cinzel text-2xl font-bold mb-2" style="color:var(--brass)">READY</p>
+        <p class="text-sm mb-6" style="color:var(--muted)">按下启动发条开始游戏</p>
+        <p class="text-xs" style="color:var(--rivet)">或按 空格键 / 回车键</p>
+      </div>
+      <!-- 结束覆盖层 -->
+      <div id="overOverlay" class="overlay hidden">
+        <i class="fa-solid fa-gear-broken text-4xl mb-4" style="color:var(--accent)"></i>
+        <p class="font-cinzel text-2xl font-bold mb-1" style="color:var(--accent)">GAME OVER</p>
+        <p class="text-sm mb-1" style="color:var(--muted)">发条已断裂</p>
+        <p class="font-cinzel text-3xl font-black my-3" style="color:var(--gold)" id="finalScore">0</p>
+        <p class="text-xs mb-4" style="color:var(--muted)">按下重新上紧再来一局</p>
+      </div>
+    </div>
+
+    <!-- 侧面板 -->
+    <aside class="side-panel flex flex-col gap-4">
+      <!-- 分数 -->
+      <div class="gauge">
+        <p class="text-xs tracking-widest mb-1" style="color:var(--muted)"><i class="fa-solid fa-gauge-high mr-1"></i>得分</p>
+        <p class="font-cinzel text-4xl font-black" style="color:var(--gold)" id="scoreDisplay">0</p>
+      </div>
+      <!-- 最高分 -->
+      <div class="gauge">
+        <p class="text-xs tracking-widest mb-1" style="color:var(--muted)"><i class="fa-solid fa-trophy mr-1"></i>最高纪录</p>
+        <p class="font-cinzel text-2xl font-bold" style="color:var(--copper)" id="highScoreDisplay">0</p>
+      </div>
+      <!-- 速度 -->
+      <div class="gauge">
+        <p class="text-xs tracking-widest mb-2" style="color:var(--muted)"><i class="fa-solid fa-bolt mr-1"></i>发条转速</p>
+        <div class="speed-bar"><div class="speed-fill" id="speedFill" style="width:0%"></div></div>
+        <p class="text-xs mt-1 text-right" style="color:var(--rivet)" id="speedLabel">I</p>
+      </div>
+      <!-- 长度 -->
+      <div class="gauge">
+        <p class="text-xs tracking-widest mb-1" style="color:var(--muted)"><i class="fa-solid fa-ruler mr-1"></i>链条长度</p>
+        <p class="font-cinzel text-xl font-bold" style="color:var(--brass)" id="lengthDisplay">3</p>
+      </div>
+      <!-- 按钮 -->
+      <button id="startBtn" class="btn-brass" aria-label="启动发条">启动发条</button>
+      <button id="restartBtn" class="btn-brass" disabled aria-label="重新上紧">重新上紧</button>
+      <!-- 操作说明 -->
+      <div class="gauge">
+        <p class="text-xs tracking-widest mb-3" style="color:var(--muted)"><i class="fa-solid fa-circle-info mr-1"></i>操作说明</p>
+        <div class="flex flex-col gap-2 text-xs" style="color:var(--text)">
+          <div class="flex items-center gap-2">
+            <span class="key-cap"><i class="fa-solid fa-arrow-up" style="font-size:10px"></i></span>
+            <span class="key-cap"><i class="fa-solid fa-arrow-down" style="font-size:10px"></i></span>
+            <span class="key-cap"><i class="fa-solid fa-arrow-left" style="font-size:10px"></i></span>
+            <span class="key-cap"><i class="fa-solid fa-arrow-right" style="font-size:10px"></i></span>
+            <span style="color:var(--muted)">移动</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="key-cap" style="min-width:56px">Space</span>
+            <span style="color:var(--muted)">开始/重来</span>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+</main>
+
+<!-- Toast -->
+<div id="toast" class="toast" role="alert" aria-live="polite"></div>
+
+<script>
+/* ============================================
+   发条贪吃蛇 - 游戏逻辑与渲染
+   ============================================ */
+
+// ---- 常量 ----
+const COLS = 20, ROWS = 20, CELL = 25;
+const W = COLS * CELL, H = ROWS * CELL;
+const INITIAL_SPEED = 150; // 毫秒
+const MIN_SPEED = 65;
+const SPEED_STEP = 8;     // 每次加速减少的毫秒数
+
+// ---- DOM ----
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const scoreEl = document.getElementById('scoreDisplay');
+const highEl = document.getElementById('highScoreDisplay');
+const speedFill = document.getElementById('speedFill');
+const speedLabel = document.getElementById('speedLabel');
+const lengthEl = document.getElementById('lengthDisplay');
+const finalEl = document.getElementById('finalScore');
+const startOv = document.getElementById('startOverlay');
+const overOv = document.getElementById('overOverlay');
+const startBtn = document.getElementById('startBtn');
+const restartBtn = document.getElementById('restartBtn');
+const toastEl = document.getElementById('toast');
+
+// ---- 状态 ----
+let snake = [], food = null;
+let dir = {x:1,y:0}, nextDir = {x:1,y:0};
+let score = 0, highScore = parseInt(localStorage.getItem('cws_hi')||'0');
+let state = 'idle'; // idle | playing | over
+let speed = INITIAL_SPEED;
+let stepTimer = null;
+let particles = [];
+let screenShake = 0;
+
+// 背景装饰齿轮（画布内）
+const decoGears = [
+  {x:80, y:80, r:60, teeth:12, speed:0.15, opacity:0.04},
+  {x:420, y:400, r:50, teeth:10, speed:-0.2, opacity:0.035},
+  {x:350, y:100, r:35, teeth:8, speed:0.25, opacity:0.03},
+  {x:120, y:380, r:45, teeth:9, speed:-0.12, opacity:0.03},
+];
+
+// ---- 初始化 ----
+highEl.textContent = highScore;
+
+function initSnake() {
+  snake = [];
+  const sx = Math.floor(COLS / 2), sy = Math.floor(ROWS / 2);
+  for (let i = 0; i < 3; i++) snake.push({x: sx - i, y: sy});
+}
+
+function spawnFood() {
+  let p;
+  do {
+    p = {x: Math.floor(Math.random()*COLS), y: Math.floor(Math.random()*ROWS)};
+  } while (snake.some(s => s.x===p.x && s.y===p.y));
+  food = p;
+}
+
+// ---- 游戏逻辑 ----
+function step() {
+  if (state !== 'playing') return;
+  dir = {...nextDir};
+  const head = {x: snake[0].x + dir.x, y: snake[0].y + dir.y};
+
+  // 碰墙
+  if (head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS) { endGame(); return; }
+  // 碰身体
+  if (snake.some(s => s.x===head.x && s.y===head.y)) { endGame(); return; }
+
+  snake.unshift(head);
+
+  if (food && head.x===food.x && head.y===food.y) {
+    score += 10;
+    updateUI();
+    spawnParticles(food.x*CELL+CELL/2, food.y*CELL+CELL/2, 12);
+    spawnFood();
+    // 加速
+    if (speed > MIN_SPEED) {
+      speed = Math.max(MIN_SPEED, speed - SPEED_STEP);
+      clearInterval(stepTimer);
+      stepTimer = setInterval(step, speed);
+    }
+  } else {
+    snake.pop();
+  }
+}
+
+function startGame() {
+  score = 0; speed = INITIAL_SPEED;
+  dir = {x:1,y:0}; nextDir = {x:1,y:0};
+  particles = []; screenShake = 0;
+  initSnake(); spawnFood();
+  state = 'playing';
+  startOv.classList.add('hidden');
+  overOv.classList.add('hidden');
+  startBtn.disabled = true;
+  restartBtn.disabled = true;
+  updateUI();
+  clearInterval(stepTimer);
+  stepTimer = setInterval(step, speed);
+}
+
+function endGame() {
+  state = 'over';
+  clearInterval(stepTimer);
+  screenShake = 12;
+  spawnParticles(snake[0].x*CELL+CELL/2, snake[0].y*CELL+CELL/2, 20, true);
+
+  if (score > highScore) {
+    highScore = score;
+    localStorage.setItem('cws_hi', String(highScore));
+    highEl.textContent = highScore;
+    showToast('新纪录达成！');
+  }
+  finalEl.textContent = score;
+  setTimeout(() => { overOv.classList.remove('hidden'); }, 400);
+  startBtn.disabled = true;
+  restartBtn.disabled = false;
+}
+
+// ---- UI更新 ----
+function updateUI() {
+  scoreEl.textContent = score;
+  scoreEl.classList.remove('score-pop');
+  void scoreEl.offsetWidth; // 触发重排以重启动画
+  scoreEl.classList.add('score-pop');
+  lengthEl.textContent = snake.length;
+
+  // 速度条
+  const pct = ((INITIAL_SPEED - speed) / (INITIAL_SPEED - MIN_SPEED)) * 100;
+  speedFill.style.width = pct + '%';
+  // 速度等级标签
+  if (pct < 20) speedLabel.textContent = 'I';
+  else if (pct < 40) speedLabel.textContent = 'II';
+  else if (pct < 60) speedLabel.textContent = 'III';
+  else if (pct < 80) speedLabel.textContent = 'IV';
+  else speedLabel.textContent = 'V';
+}
+
+function showToast(msg) {
+  toastEl.textContent = msg;
+  toastEl.classList.add('show');
+  setTimeout(() => toastEl.classList.remove('show'), 2000);
+}
+
+// ---- 粒子系统 ----
+function spawnParticles(cx, cy, count, isDeath) {
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const spd = 1 + Math.random() * 3;
+    particles.push({
+      x: cx, y: cy,
+      vx: Math.cos(angle) * spd,
+      vy: Math.sin(angle) * spd,
+      life: 1,
+      decay: 0.015 + Math.random() * 0.02,
+      size: 2 + Math.random() * 3,
+      color: isDeath ? '#c0392b' : (Math.random()>.5 ? '#d4a843' : '#b87333'),
+    });
+  }
+}
+
+function updateParticles() {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx; p.y += p.vy;
+    p.vy += 0.05; // 微重力
+    p.life -= p.decay;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+}
+
+function drawParticles() {
+  for (const p of particles) {
+    ctx.globalAlpha = Math.max(0, p.life);
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, Math.max(0.5, p.size * p.life), 0, Math.PI*2);
+    ctx.fill();
+    // 发光
+    ctx.globalAlpha = Math.max(0, p.life * 0.3);
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, Math.max(0.5, p.size * p.life * 2.5), 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ---- 绘制函数 ----
+
+// 背景
+function drawBg() {
+  // 基础填充
+  ctx.fillStyle = '#0d0b09';
+  ctx.fillRect(0, 0, W, H);
+
+  // 网格线
+  ctx.strokeStyle = 'rgba(61,53,44,0.25)';
+  ctx.lineWidth = 0.5;
+  for (let x = 0; x <= COLS; x++) {
+    ctx.beginPath(); ctx.moveTo(x*CELL, 0); ctx.lineTo(x*CELL, H); ctx.stroke();
+  }
+  for (let y = 0; y <= ROWS; y++) {
+    ctx.beginPath(); ctx.moveTo(0, y*CELL); ctx.lineTo(W, y*CELL); ctx.stroke();
+  }
+}
+
+// 装饰齿轮
+function drawDecoGears(t) {
+  for (const g of decoGears) {
+    ctx.globalAlpha = g.opacity;
+    gearPath(ctx, g.x, g.y, g.r, g.r*0.72, g.teeth, t * g.speed);
+    ctx.strokeStyle = '#c9a84c';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    // 中心圆
+    ctx.beginPath();
+    ctx.arc(g.x, g.y, g.r*0.2, 0, Math.PI*2);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+
+// 齿轮路径
+function gearPath(c, cx, cy, oR, iR, teeth, rot) {
+  c.save(); c.translate(cx, cy); c.rotate(rot);
+  c.beginPath();
+  const step = (Math.PI*2)/teeth;
+  for (let i = 0; i < teeth; i++) {
+    const a = i * step;
+    const pts = [
+      [a, iR],
+      [a + step*0.2, oR],
+      [a + step*0.45, oR],
+      [a + step*0.65, iR],
+    ];
+    for (const [ang, r] of pts) {
+      const x = Math.cos(ang)*r, y = Math.sin(ang)*r;
+      i===0 && ang===a ? c.moveTo(x,y) : c.lineTo(x,y);
+    }
+  }
+  c.closePath(); c.restore();
+}
+
+// 食物
+function drawFood(t) {
+  const cx = food.x*CELL + CELL/2;
+  const cy = food.y*CELL + CELL/2;
+  const pulse = 1 + Math.sin(t*4)*0.08;
+  const oR = CELL*0.38 * pulse;
+  const iR = oR * 0.68;
+
+  // 发光
+  ctx.globalAlpha = 0.15 + Math.sin(t*4)*0.08;
+  const glow = ctx.createRadialGradient(cx,cy,0,cx,cy,CELL*0.7);
+  glow.addColorStop(0, '#c0392b');
+  glow.addColorStop(1, 'rgba(192,57,43,0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(cx-CELL, cy-CELL, CELL*2, CELL*2);
+  ctx.globalAlpha = 1;
+
+  // 齿轮
+  gearPath(ctx, cx, cy, oR, iR, 8, t*2);
+  const g = ctx.createRadialGradient(cx-2,cy-2,0,cx,cy,oR);
+  g.addColorStop(0, '#e74c3c');
+  g.addColorStop(0.6, '#c0392b');
+  g.addColorStop(1, '#8b2020');
+  ctx.fillStyle = g;
+  ctx.fill();
+  ctx.strokeStyle = '#e74c3c';
+  ctx.lineWidth = 0.8;
+  ctx.stroke();
+
+  // 中心螺丝
+  ctx.beginPath();
+  ctx.arc(cx, cy, iR*0.35, 0, Math.PI*2);
+  ctx.fillStyle = '#5a1515';
+  ctx.fill();
+  ctx.strokeStyle = '#8b2020';
+  ctx.lineWidth = 0.5;
+  ctx.stroke();
+  // 十字
+  ctx.strokeStyle = '#c0392b';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(cx-3,cy); ctx.lineTo(cx+3,cy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx,cy-3); ctx.lineTo(cx,cy+3); ctx.stroke();
+}
+
+// 蛇身颜色
+function segColor(i, total) {
+  const t = total > 1 ? i/(total-1) : 0;
+  const r = Math.round(212 - t*105);
+  const g = Math.round(168 - t*92);
+  const b = Math.round(67 - t*25);
+  return `rgb(${r},${g},${b})`;
+}
+
+function segHighlight(i) {
+  const t = i / Math.max(1, snake.length-1);
+  const r = Math.round(230 - t*80);
+  const g = Math.round(200 - t*70);
+  const b = Math.round(120 - t*40);
+  return `rgba(${r},${g},${b},0.35)`;
+}
+
+// 蛇
+function drawSnake() {
+  if (!snake.length) return;
+  const pad = 2;
+  const segSize = CELL - pad*2;
+  const connW = segSize * 0.55;
+  const connOff = (CELL - connW) / 2;
+
+  // 1. 画连接
+  for (let i = 0; i < snake.length-1; i++) {
+    const c = snake[i], n = snake[i+1];
+    const dx = c.x-n.x, dy = c.y-n.y;
+    ctx.fillStyle = segColor(i, snake.length);
+    if (Math.abs(dx)===1) {
+      const lx = Math.min(c.x,n.x)*CELL + CELL - pad;
+      ctx.fillRect(lx, c.y*CELL + connOff, pad*2, connW);
+    }
+    if (Math.abs(dy)===1) {
+      const ly = Math.min(c.y,n.y)*CELL + CELL - pad;
+      ctx.fillRect(c.x*CELL + connOff, ly, connW, pad*2);
+    }
+  }
+
+  // 2. 画每个节段（从尾到头，头在最上层）
+  for (let i = snake.length-1; i >= 0; i--) {
+    const s = snake[i];
+    const px = s.x*CELL + pad, py = s.y*CELL + pad;
+    const isHead = i===0;
+    const isTail = i===snake.length-1 && snake.length>1;
+    const sz = isTail ? segSize*0.82 : segSize;
+    const off = (segSize - sz) / 2;
+
+    // 金属渐变
+    const grad = ctx.createLinearGradient(px, py, px+sz, py+sz);
+    grad.addColorStop(0, segHighlight(i));
+    grad.addColorStop(0.4, segColor(i, snake.length));
+    grad.addColorStop(1, darken(segColor(i, snake.length), 0.7));
+    ctx.fillStyle = grad;
+    roundRect(ctx, px+off, py+off, sz, sz, isHead?5:3);
+    ctx.fill();
+
+    // 边框
+    ctx.strokeStyle = darken(segColor(i, snake.length), 0.5);
+    ctx.lineWidth = 1;
+    roundRect(ctx, px+off, py+off, sz, sz, isHead?5:3);
+    ctx.stroke();
+
+    // 铆钉（跳过头和尾）
+    if (!isHead && !isTail && sz > 12) {
+      const rp = sz * 0.28;
+      const rcx = px+off+sz/2, rcy = py+off+sz/2;
+      drawRivet(rcx-rp, rcy-rp, 1.8);
+      drawRivet(rcx+rp, rcy-rp, 1.8);
+      drawRivet(rcx-rp, rcy+rp, 1.8);
+      drawRivet(rcx+rp, rcy+rp, 1.8);
+    }
+
+    // 蛇头细节
+    if (isHead) {
+      const hcx = px+off+sz/2, hcy = py+off+sz/2;
+      // 眼睛位置根据方向偏移
+      let e1x, e1y, e2x, e2y;
+      const ed = sz*0.22, ef = sz*0.15;
+      if (dir.x===1)       { e1x=hcx+ef;e1y=hcy-ed; e2x=hcx+ef;e2y=hcy+ed; }
+      else if (dir.x===-1) { e1x=hcx-ef;e1y=hcy-ed; e2x=hcx-ef;e2y=hcy+ed; }
+      else if (dir.y===-1) { e1x=hcx-ed;e1y=hcy-ef; e2x=hcx+ed;e2y=hcy-ef; }
+      else                 { e1x=hcx-ed;e1y=hcy+ef; e2x=hcx+ed;e2y=hcy+ef; }
+
+      // 眼睛发光
+      ctx.shadowColor = '#e8d5b5';
+      ctx.shadowBlur = 6;
+      ctx.fillStyle = '#f5e6c8';
+      ctx.beginPath(); ctx.arc(e1x,e1y,2.5,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(e2x,e2y,2.5,0,Math.PI*2); ctx.fill();
+      // 瞳孔
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#1a1410';
+      ctx.beginPath(); ctx.arc(e1x+dir.x*0.5,e1y+dir.y*0.5,1.2,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(e2x+dir.x*0.5,e2y+dir.y*0.5,1.2,0,Math.PI*2); ctx.fill();
+    }
+  }
+}
+
+// 辅助：圆角矩形
+function roundRect(c, x, y, w, h, r) {
+  r = Math.min(r, w/2, h/2);
+  c.beginPath();
+  c.moveTo(x+r,y);
+  c.lineTo(x+w-r,y); c.quadraticCurveTo(x+w,y,x+w,y+r);
+  c.lineTo(x+w,y+h-r); c.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  c.lineTo(x+r,y+h); c.quadraticCurveTo(x,y+h,x,y+h-r);
+  c.lineTo(x,y+r); c.quadraticCurveTo(x,y,x+r,y);
+  c.closePath();
+}
+
+// 辅助：铆钉
+function drawRivet(x, y, r) {
+  r = Math.max(0.5, r);
+  const g = ctx.createRadialGradient(x-r*0.3, y-r*0.3, 0, x, y, r);
+  g.addColorStop(0, '#e0c878');
+  g.addColorStop(1, '#6b5a42');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+}
+
+// 辅助：加深颜色
+function darken(rgb, factor) {
+  const m = rgb.match(/\d+/g);
+  if (!m) return rgb;
+  return `rgb(${Math.round(m[0]*factor)},${Math.round(m[1]*factor)},${Math.round(m[2]*factor)})`;
+}
+
+// 暗角
+function drawVignette() {
+  const g = ctx.createRadialGradient(W/2,H/2,W*0.3,W/2,H/2,W*0.72);
+  g.addColorStop(0, 'rgba(13,11,9,0)');
+  g.addColorStop(1, 'rgba(13,11,9,0.55)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0,0,W,H);
+}
+
+// ---- 主渲染循环 ----
+function render() {
+  const t = Date.now() * 0.001;
+
+  // 屏幕震动
+  ctx.save();
+  if (screenShake > 0) {
+    const sx = (Math.random()-0.5)*screenShake;
+    const sy = (Math.random()-0.5)*screenShake;
+    ctx.translate(sx, sy);
+    screenShake *= 0.85;
+    if (screenShake < 0.3) screenShake = 0;
+  }
+
+  drawBg();
+  drawDecoGears(t);
+
+  if (food && state !== 'idle') drawFood(t);
+  if (snake.length) drawSnake();
+
+  updateParticles();
+  drawParticles();
+  drawVignette();
+
+  ctx.restore();
+  requestAnimationFrame(render);
+}
+
+// ---- 输入处理 ----
+document.addEventListener('keydown', (e) => {
+  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
+
+  if (state === 'playing') {
+    switch(e.key) {
+      case 'ArrowUp':    if (dir.y!==1)  nextDir={x:0,y:-1}; break;
+      case 'ArrowDown':  if (dir.y!==-1) nextDir={x:0,y:1};  break;
+      case 'ArrowLeft':  if (dir.x!==1)  nextDir={x:-1,y:0}; break;
+      case 'ArrowRight': if (dir.x!==-1) nextDir={x:1,y:0};  break;
+    }
+  }
+
+  if ((e.key === ' ' || e.key === 'Enter') && state !== 'playing') {
+    startGame();
+  }
+});
+
+// 触摸滑动支持
+let touchStart = null;
+canvas.addEventListener('touchstart', (e) => {
+  const t = e.touches[0];
+  touchStart = {x: t.clientX, y: t.clientY};
+}, {passive: true});
+canvas.addEventListener('touchend', (e) => {
+  if (!touchStart) return;
+  const t = e.changedTouches[0];
+  const dx = t.clientX - touchStart.x;
+  const dy = t.clientY - touchStart.y;
+  const absDx = Math.abs(dx), absDy = Math.abs(dy);
+  if (Math.max(absDx, absDy) < 20) return;
+
+  if (state === 'playing') {
+    if (absDx > absDy) {
+      if (dx > 0 && dir.x !== -1) nextDir = {x:1,y:0};
+      else if (dx < 0 && dir.x !== 1) nextDir = {x:-1,y:0};
+    } else {
+      if (dy > 0 && dir.y !== -1) nextDir = {x:0,y:1};
+      else if (dy < 0 && dir.y !== 1) nextDir = {x:0,y:-1};
+    }
+  }
+  touchStart = null;
+}, {passive: true});
+
+// 按钮事件
+startBtn.addEventListener('click', startGame);
+restartBtn.addEventListener('click', startGame);
+
+// ---- 启动 ----
+initSnake();
+requestAnimationFrame(render);
+</script>
+</body>
+</html>
